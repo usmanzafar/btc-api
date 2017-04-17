@@ -125,9 +125,16 @@ class BTCApi
         //$requestBody = '{"currency":"AUD","instrument":"BTC","limit":10,"since":373926138}';
         //$string = $uri.'\n'.$timeStamp.'\n'.$requestBody;
         $sBody = $uri.'\n'.$timeStamp.'\n';
-
+        dump('The key after being base64_decode returns bytes');
+        dump($this->privateKey);
+        // Get the bytes
         $stringHMac = hash_hmac('sha512', $sBody, $this->privateKey, true);
+        dump("Byte representation of HMAC using sha512");
+        dump($stringHMac);
+        // Convert the bytes using base64_encode
         $stringHMac = base64_encode($stringHMac);
+        dump("String which is signed and encoded(base64), this will be sent in headers");
+        dump($stringHMac);
 
 
         $headers = [
@@ -142,7 +149,7 @@ class BTCApi
             ],
 
         ];
-
+        dump($headers);
         $response = $this->httpClient->request('GET', $uri, $headers);
         return \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
     }
