@@ -28,7 +28,7 @@ class BTCApi
      */
     public function __construct(string $publicKey, string $privateKey, string $url)
     {
-        $this->privateKey = base64_decode($privateKey);
+        $this->privateKey = base64_decode($privateKey, true);
         $this->publicKey = $publicKey;
         $this->httpClient = new Client([
             'base_uri' => $url,
@@ -103,6 +103,43 @@ class BTCApi
         return $this->makeGetRequest($uri);
     }
 
+    private function calculateSignature($uri, $postData)
+    {
+        ini_set('date.timezone', 'UTC');
+        $uri = $uri;
+        $timeStamp = \round(\microtime(true) * 1000);
+        $timeStamp = (string) $timeStamp;
+        $sBody = $uri.PHP_EOL.$timeStamp.PHP_EOL;
+        // Get the bytes
+        $stringHMacBytes = hash_hmac('sha512', $sBody, $this->privateKey, true);
+        // Convert the bytes using base64_encode so that they can be sent over http
+        $stringHMac = base64_encode($stringHMacBytes);
+        return [
+            'timestamp' => $timeStamp,
+            'hmac' => $stringHMac,
+        ];
+
+    }
+
+    protected function fetchSignedRequest($uri, $requestType = 'GET', $postData = null)
+    {
+        $signCollection = $this->calculateSignature($uri, $postData);
+
+        $headers = [
+            'headers' => [
+                'Accept' => 'application/json',
+                'Accept-Charset' => 'UTF-8',
+                'Content-Type' => 'application/json',
+                'apikey' => $this->publicKey,
+                'timestamp' => $signCollection['timestamp'],
+                'User-Agent' => 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) AppleWebKit/525.19 (KHTML, like Gecko) Chrome/1.0.154.53 Safari/525.19',
+                'signature' => $signCollection['hmac'],
+            ],
+        ];
+
+        $response = $this->httpClient->request($requestType, $uri, $headers);
+        return \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
+    }
 
     /**
      * - The current time should be the UTC
@@ -116,41 +153,7 @@ class BTCApi
      */
     public function getAccountBalance()
     {
-        ini_set('date.timezone', 'UTC');
         $uri = '/account/balance';
-        $timeStamp = \round(\   microtime(true) * 1000);
-        $timeStamp = (string) $timeStamp;
-
-
-        //$requestBody = '{"currency":"AUD","instrument":"BTC","limit":10,"since":373926138}';
-        //$string = $uri.'\n'.$timeStamp.'\n'.$requestBody;
-        $sBody = $uri.'\n'.$timeStamp.'\n';
-        dump('The key after being base64_decode returns bytes');
-        dump($this->privateKey);
-        // Get the bytes
-        $stringHMac = hash_hmac('sha512', $sBody, $this->privateKey, true);
-        dump("Byte representation of HMAC using sha512");
-        dump($stringHMac);
-        // Convert the bytes using base64_encode
-        $stringHMac = base64_encode($stringHMac);
-        dump("String which is signed and encoded(base64), this will be sent in headers");
-        dump($stringHMac);
-
-
-        $headers = [
-            'headers' => [
-                'Accept' => 'application/json',
-                'Accept-Charset' => 'UTF-8',
-                'Content-Type' => 'application/json',
-                'apikey' => $this->publicKey,
-                'timestamp' => $timeStamp,
-                'User-Agent' => 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) AppleWebKit/525.19 (KHTML, like Gecko) Chrome/1.0.154.53 Safari/525.19',
-                'signature' => $stringHMac,
-            ],
-
-        ];
-        dump($headers);
-        $response = $this->httpClient->request('GET', $uri, $headers);
-        return \GuzzleHttp\json_decode($response->getBody()->getContents(), true);
+        return $this->fetchSignedRequest($uri);
     }
 }
