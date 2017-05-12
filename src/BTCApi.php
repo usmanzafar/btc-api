@@ -27,6 +27,9 @@ class BTCApi
     const UNIT_BITS = 'bits';
     const UNIT_SATOSHI =  'satoshi';
 
+    const INSTRUMENT_BTC = 'BTC';
+    const INSTRUMENT_ETH = 'ETH';
+
     const VALUE_MBTC = 10000000000;
     const VALUE_BITS = 10000000000000;
     const VALUE_SATOSHI =  1000000000000000;
@@ -78,9 +81,9 @@ class BTCApi
      * @return array Returns the phrase passed in
      * @throws RequestException
      */
-    public function getMarketRate()
+    public function getMarketRate(string $instrument = self::INSTRUMENT_BTC)
     {
-        $uri = 'market/BTC/AUD/tick';
+        $uri = \sprintf('market/%1s/AUD/tick', $instrument);
         return $this->makeGetRequest($uri);
     }
 
@@ -115,9 +118,9 @@ class BTCApi
      * @return mixed
      * @throws RequestException
      */
-    public function getMarketOrderBook()
+    public function getMarketOrderBook(string $instrument)
     {
-        $uri = 'market/BTC/AUD/orderbook';
+        $uri = \sprintf('market/%1s/AUD/orderbook', $instrument);
         return $this->makeGetRequest($uri);
     }
 
@@ -129,8 +132,7 @@ class BTCApi
         $timeStamp = (string) $timeStamp;
         $sBody = $uri.PHP_EOL.$timeStamp.PHP_EOL;
         if ($postData) {
-            $sBody = $sBody.$postData.PHP_EOL;
-
+            $sBody = $sBody.$postData;
         }
         // Get the bytes
         $stringHMacBytes = hash_hmac('sha512', $sBody, $this->privateKey, true);
@@ -140,7 +142,6 @@ class BTCApi
             'timestamp' => $timeStamp,
             'hmac' => $stringHMac,
         ];
-
     }
 
     protected function fetchSignedRequest($uri, $requestType = 'GET', $postData = null)
@@ -156,8 +157,9 @@ class BTCApi
                 'timestamp' => $signCollection['timestamp'],
                 'User-Agent' => 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) AppleWebKit/525.19 (KHTML, like Gecko) Chrome/1.0.154.53 Safari/525.19',
                 'signature' => $signCollection['hmac'],
-                'body' => $postData,
+
             ],
+            'body' => $postData,
         ];
 
         //$gRequest = new Request('POST', $uri, $headers, $postData);
@@ -182,6 +184,7 @@ class BTCApi
         return $this->fetchSignedRequest($uri);
     }
 
+
     /**
      * Validates the currency against a unit provided
      * @param string $unit
@@ -198,31 +201,34 @@ class BTCApi
         return $unit;
     }
 
-    /**
-     * Retrieves the volume as whole numbers based on the currency unit they have
-     * @param int $volume
-     * @param string $unit
-     * @return mixed
-     * @throws InvalidCurrencyUnitException
-     */
-    protected function getVolume(int $volume, string $unit)
+
+    public function orderHistory(int $order = 1, int $limit = 10, string $instrument = 'BTC')
     {
-        $this->validateCurrency($unit);
-        return 10000 ;
-        return self::ALLOWED_CURRENCY[$unit] * $volume;
+        $uri = '/order/history';
+        $data  = [
+            'currency' => 'AUD',
+            'instrument' => $instrument,
+            'limit' => $limit,
+            'since' => $order
+        ];
+        $postData = \json_encode($data);
+        $request = 'POST';
+        return $this->fetchSignedRequest($uri, $request, $postData);
     }
 
 
-    public function createOrder($type = 'mBTC')
+
+
+    public function createOrder($price, $volume, string $instrument = self::INSTRUMENT_BTC)
     {
         $uri = '/order/create';
         $request = 'POST';
-        $price = 2;
-        $postPrice = (int) $price * self::CURRENCY_DENOMINATOR;
-        $volume = (int) $this->getVolume(5, self::UNIT_MBTC);
+        $postPrice =  $price * self::CURRENCY_DENOMINATOR;
+        $volume = (int) $volume * self::CURRENCY_DENOMINATOR;
+
         $data = [
             'currency' => 'AUD',
-            'instrument' => 'BTC',
+            'instrument' => $instrument,
             'price' => $postPrice,
             'volume' => $volume,
             'orderSide' => 'Bid',
@@ -231,13 +237,6 @@ class BTCApi
         ];
         $postData = json_encode($data);
 
-
-        // check if mBTC
-        $postData = '{"currency":"AUD","instrument":"BTC","price":13000000000,"volume":10000000,"orderSide":"Bid","ordertype":"Limit","clientRequestId":"abc-cdf-1000"}';
-
-
-        //dump($postData, json_encode($data));exit;
         return $this->fetchSignedRequest($uri, $request, $postData);
-
     }
 }
