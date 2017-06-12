@@ -35,8 +35,8 @@ $ composer require usmanzafar/btcmarkets
 ## Usage
 
 ``` php
-$skeleton = new usmanzafar\btcmarkets();
-echo $skeleton->echoPhrase('Hello, League!');
+$client = new usmanzafar\btcmarkets("pub","priv","server");
+var_dump($client->getAccountBalance()); 
 ```
 
 ## Change log
